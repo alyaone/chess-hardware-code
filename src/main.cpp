@@ -1,60 +1,53 @@
 #include <Arduino.h>
-#include "config/settings.h"
-#include "hardware/hardware_io.h"
-#include "hardware/board_logic.h"
-#include "comm/fen.h"
-#include "comm/rpi_link.h"
+#include "settings.h"
+#include "hardware.h"
+#include "rpi_link.h"
 
-static uint64_t prevOcc = 0;
+// ESP32 cuma "mata": baca papan & tombol, lapor ke GUI. Semua aturan catur ada di GUI (python-chess).
 
-static void processInput(String input) {
-  input.trim();
-  input.toUpperCase();
-
-  if (input == "START" || input == "START W") {
-    if (setupMode && setupStart(TURN_WHITE)) rpiSendSetupData(fenGenerate());   // FEN cuma dikirim SEKALI di sini
-    return;
-  }
-  if (input == "START B") {
-    if (setupMode && setupStart(TURN_BLACK)) rpiSendSetupData(fenGenerate());
-    return;
-  }
-  if (input == "SETUP")  { setupRestart(); return; }
-  if (input == "FEN")    { rpiSendSetupData(fenGenerate()); return; }
-  if (input == "STATUS") { rpiSendStatus(prevOcc); return; }
-
-  // Kode bidak (hanya saat setup & sedang ditanya)
-  if (!setupMode || !setupIsWaiting()) return;
-  char piece = pieceFromCode(input);
-  if (piece) setupAssignPiece(piece);
-  else Serial.println("Kode tidak valid. Contoh: KW, QB, RW, BB, NW, PB.");
-}
+static uint64_t  lastSent   = 0;
+static bool      sentOnce   = false;
+static uint8_t   scansDone  = 0;
+static SwitchPos lastSwitch = SW_OFF;
 
 void setup() {
   rpiBegin();
   hardwareBegin();
-  boardClear();
+  rpiSendReady();
 }
 
 void loop() {
+  // ----- Perintah dari GUI -----
   String line;
-  if (rpiReceive(line)) processInput(line);
-
-  controlsUpdate();
-  char btn = controlsPieceButton();
-  if (btn && setupMode) setupAssignPiece(btn);
-  // controlsSwitch() siap dipakai (SW_WHITE / SW_OFF / SW_BLACK), belum disambungkan ke logika apa pun
-
-  if (sensorsScan()) {
-    uint64_t occ = sensorsOccupied();
-    if (setupMode) {
-      setupOnScan(prevOcc, occ);
-    } else {
-      Move m;
-      if (moveDetectorUpdate(prevOcc, occ, m)) rpiSendMove(m.from, m.to);
-    }
-    prevOcc = occ;
+  if (rpiReceive(line)) {
+    line.trim();
+    line.toUpperCase();
+    if (line == "SYNC") sentOnce = false;   // kirim ulang bitmap di scan berikutnya
   }
 
-  delay(10);
+  // ----- Tombol & switch -----
+  controlsUpdate();
+  char btn = controlsPieceButton();
+  if (btn) rpiSendButton(btn);
+
+  SwitchPos sw = controlsSwitch();
+  if (sw != lastSwitch) {
+    lastSwitch = sw;
+    rpiSendSwitch(sw);
+  }
+
+  // ----- Papan: kirim bitmap tiap ada perubahan stabil -----
+  if (sensorsScan()) {
+    if (scansDone <= STABLE_READS) scansDone++;      // tunggu debounce pertama selesai
+    if (scansDone > STABLE_READS) {
+      uint64_t occ = sensorsOccupied();
+      if (!sentOnce || occ != lastSent) {
+        rpiSendOcc(occ);
+        lastSent = occ;
+        sentOnce = true;
+      }
+    }
+  }
+
+  delay(2);
 }

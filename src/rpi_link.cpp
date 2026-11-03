@@ -1,12 +1,10 @@
-#include "include/rpi_link.h"
-#include "include/board_logic.h"
-#include "include/define.h"
+#include "rpi_link.h"
+#include "settings.h"
 
 static String inputLine = "";
 
 void rpiBegin() {
   Serial.begin(SERIAL_BAUD);
-  if (BOOT_MESSAGE) Serial.println("ESP32 siap.");
 }
 
 bool rpiReceive(String& line) {
@@ -25,50 +23,23 @@ bool rpiReceive(String& line) {
   return false;
 }
 
-void rpiSendFen(const String& fen) {
-  Serial.print("FEN:");
-  Serial.println(fen);
+void rpiSendReady() {
+  Serial.println("READY");
 }
 
-void rpiSendSetupData(const String& fen) {
-  rpiSendFen(fen);
-
-  Serial.print("TURN,");
-  Serial.println(currentTurn == TURN_BLACK ? "BLACK" : "WHITE");
-
-  // Hanya kotak berisi (bukan 64 entri) supaya baris tidak kepanjangan
-  Serial.print("BOARD");
-  char name[3];
-  for (uint8_t i = 0; i < NUM_SQUARES; i++) {
-    if (board[i] == ' ') continue;
-    squareName(i, name);
-    Serial.print(",");
-    Serial.print(name);
-    Serial.print("=");
-    Serial.print(board[i]);
-  }
-  Serial.println();
-  Serial.println("END_SETUP_DATA");
+void rpiSendOcc(uint64_t occ) {
+  char buf[24];
+  snprintf(buf, sizeof(buf), "OCC:%08lX%08lX",
+           (unsigned long)(occ >> 32), (unsigned long)(occ & 0xFFFFFFFFULL));
+  Serial.println(buf);
 }
 
-void rpiSendMove(uint8_t from, uint8_t to) {
-  char a[3], b[3];
-  squareName(from, a);
-  squareName(to, b);
-  Serial.print("MOVE:");
-  Serial.print(a);
-  Serial.print("->");
-  Serial.println(b);
+void rpiSendButton(char piece) {
+  Serial.print("BTN:");
+  Serial.println(piece);
 }
 
-void rpiSendStatus(uint64_t occupied) {
-  Serial.print("STATUS mode=");
-  Serial.print(setupMode ? "SETUP" : "MAIN");
-  Serial.print(" turn=");
-  Serial.print(currentTurn == TURN_BLACK ? "BLACK" : "WHITE");
-  Serial.print(" sens=");
-  for (uint8_t i = 0; i < NUM_SQUARES; i++) Serial.print(((occupied >> i) & 1ULL) ? 1 : 0);
-  Serial.print(" board=");
-  for (uint8_t i = 0; i < NUM_SQUARES; i++) Serial.print(board[i] == ' ' ? '-' : board[i]);
-  Serial.println();
+void rpiSendSwitch(SwitchPos pos) {
+  Serial.print("SW:");
+  Serial.println(pos == SW_WHITE ? "WHITE" : (pos == SW_BLACK ? "BLACK" : "OFF"));
 }

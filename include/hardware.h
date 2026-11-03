@@ -5,13 +5,13 @@
 
 enum SwitchPos : uint8_t { SW_OFF, SW_WHITE, SW_BLACK };
 
-void      hardwareBegin();          // atur semua pin (mux, sensor, kontrol)
+void      hardwareBegin();
 
 // ----- Sensor papan -----
-bool      sensorsScan();            // true kalau ada scan baru (sesuai SCAN_INTERVAL_MS)
-uint64_t  sensorsOccupied();        // bitmap hasil debounce, bit n = kotak n terisi
+bool      sensorsScan();           // true kalau ada scan baru (sesuai SCAN_INTERVAL_MS)
+uint64_t  sensorsOccupied();       // bitmap stabil: bit n = kotak n terisi (A1=0, B1=1, ... H1=7, A2=8, ... H8=63)
 
 // ----- Tombol & switch -----
-void      controlsUpdate();         // panggil tiap loop
-char      controlsPieceButton();    // huruf FEN tombol yang baru ditekan, 0 kalau tidak ada (sekali baca)
+void      controlsUpdate();
+char      controlsPieceButton();   // huruf FEN tombol yang baru ditekan (K Q R B N P / k q r b n p), 0 kalau tidak ada
 SwitchPos controlsSwitch();

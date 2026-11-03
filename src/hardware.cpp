@@ -1,9 +1,12 @@
-#include "hardware/hardware.h"
-#include "include/define.h"
+#include "hardware.h"
+#include "pins.h"
+#include "settings.h"
 
 // =====================================================================
 //  MUX (internal)
 // =====================================================================
+static uint8_t squareOf[NUM_BOARD_MUX][16];   // [mux][channel] -> index kotak 0..63
+
 static void muxSelect(uint8_t channel) {
   digitalWrite(PIN_S0, (channel >> 0) & 1);
   digitalWrite(PIN_S1, (channel >> 1) & 1);
@@ -18,6 +21,14 @@ void hardwareBegin() {
   pinMode(PIN_S3, OUTPUT);
   for (uint8_t m = 0; m < NUM_BOARD_MUX; m++) pinMode(PIN_SIG_BOARD[m], INPUT);
   pinMode(PIN_SIG_CTRL, INPUT_PULLUP);
+
+  // "E2" -> file E (4), rank 2 (1) -> index 1*8 + 4 = 12  (sama dengan chess.E2 di python-chess)
+  for (uint8_t m = 0; m < NUM_BOARD_MUX; m++) {
+    for (uint8_t ch = 0; ch < 16; ch++) {
+      const char* n = SQUARE_NAME[m][ch];
+      squareOf[m][ch] = (n[1] - '1') * 8 + (n[0] - 'A');
+    }
+  }
 }
 
 // =====================================================================
@@ -36,7 +47,7 @@ static uint64_t readRaw() {
     delayMicroseconds(100);
     for (uint8_t m = 0; m < NUM_BOARD_MUX; m++) {
       if (digitalRead(PIN_SIG_BOARD[m]) == LOW) {   // KY-003 aktif LOW saat ada magnet
-        bits |= 1ULL << squareIndex(m, ch);
+        bits |= 1ULL << squareOf[m][ch];
       }
     }
   }
